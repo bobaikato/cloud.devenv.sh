@@ -88,7 +88,12 @@ jobs:
 
       - name: Preview doctor fix surface
         shell: bash
-        run: ota doctor --fix --dry-run --json . > ota-doctor-fix-preview.json
+        run: |
+          status=0
+          ota doctor --fix --dry-run --json . > ota-doctor-fix-preview.json || status=$?
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
 
       - name: Apply doctor fix surface
         timeout-minutes: 60
