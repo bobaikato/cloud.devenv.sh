@@ -1,0 +1,128 @@
+# 
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+version: 1
+project:
+  name: cloud.devenv.sh
+  description: Cloud-hosted devenv platform pressure slice with nix-owned bootstrap and devenv-owned execution
+  type: application
+
+execution:
+  preferred: native
+  supported:
+    - native
+
+tools:
+  nix: "*"
+  devenv:
+    version: "*"
+    acquisition:
+      provider: command
+      shell: bash
+      run: nix profile install --accept-flake-config github:cachix/devenv/main#devenv
+
+tasks:
+  test:
+    category: test
+    description: Run the repo's canonical devenv verification lane.
+    command:
+      exe: devenv
+      args:
+        - test
+    requirements:
+      tools:
+        nix: "*"
+        devenv: "*"
+    safe_for_agent: true
+    notes: |
+      The current shipped CI truth is `nix run github:cachix/devenv/main#devenv -- test`.
+      This contract keeps the same environment owner (`devenv`) while letting Ota own deterministic
+      command acquisition when the tool is missing and `nix` is already present on the host.
+
+  dev:
+    category: dev
+    description: Start the local multi-process development environment.
+    launch:
+      kind: command
+      exe: devenv
+      args:
+        - up
+    requirements:
+      tools:
+        nix: "*"
+        devenv: "*"
+    notes: |
+      This repo's local development surface is `devenv up`, so the long-running lane stays on
+      `launch.kind: command` instead of being flattened into a finite shell task.
+
+  verify:
+    category: test
+    description: Run the canonical verification surface for the pressure slice.
+    aggregate:
+      tasks:
+        - test
+    safe_for_agent: true
+    notes: |
+      This keeps one verification entrypoint without inventing a no-op shell wrapper.
+
+workflows:
+  default: verify
+  verify:
+    description: Canonical contributor verification path for cloud.devenv.sh.
+    run:
+      task: verify
+    notes: |
+      Use `ota up --workflow verify` to run the repo's devenv-backed verification path.
+
+agent:
+  posture: readiness_strict
+  entrypoint: test
+  default_task: verify
+  safe_tasks:
+    - test
+    - verify
+  verify_after_changes:
+    - verify
+  writable_paths:
+    - backend
+    - cloud-hypervisor-client
+    - frontend
+    - init
+    - logger
+    - runner
+    - terraform
+  protected_paths:
+    - .github/workflows
+    - Cargo.lock
+    - devenv.nix
+    - ota.yaml
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      source:
+        kind: branch
+        branch: 1.6.23-implementation
+  notes: |
+    Start with `ota validate`, then `ota tasks --use`, then `ota run verify --dry-run`.
+    This repo's environment truth belongs to `devenv`, while `nix` remains the prerequisite
+    bootstrap owner on a clean host.

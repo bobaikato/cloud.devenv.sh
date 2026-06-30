@@ -17,3 +17,8 @@ TODO
 
 /runner/macos/runner-vm
 /runner/macos/.tart
+
+# Ota local runtime artifacts
+.ota/state/*
+.ota/receipts/*
+.ota/proof/*

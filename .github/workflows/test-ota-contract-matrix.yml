@@ -1,0 +1,142 @@
+#
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+name: Test Ota Contract Matrix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ota.yaml
+      - .github/workflows/test-ota-contract-matrix.yml
+  push:
+    paths:
+      - ota.yaml
+      - .github/workflows/test-ota-contract-matrix.yml
+
+concurrency:
+  group: ota-contract-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  OTA_NO_UPDATE_CHECK: "1"
+
+jobs:
+  matrix:
+    name: Ota Contract Matrix (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-native
+            os: ubuntu-latest
+          - name: macos-native
+            os: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Set up ota
+        uses: ota-run/setup@v1.0.8
+        with:
+          source: contract
+          contract-path: ota.yaml
+
+      - name: Validate contract
+        shell: bash
+        run: |
+          ota validate --json . > ota-validate.json
+          ota validate .
+
+      - name: List task and workflow surfaces
+        shell: bash
+        run: |
+          ota tasks --use .
+          ota tasks --safe --use .
+          ota workflows .
+
+      - name: Preview doctor fix surface
+        shell: bash
+        run: ota doctor --fix --dry-run --json . > ota-doctor-fix-preview.json
+
+      - name: Apply doctor fix surface
+        timeout-minutes: 60
+        shell: bash
+        run: |
+          ota doctor --fix --json . > ota-doctor-fix.json
+          ota doctor --fix .
+
+      - name: Doctor contract
+        shell: bash
+        run: ota doctor .
+
+      - name: Export execution topology
+        shell: bash
+        run: ota execution topology --json . > ota-execution-topology.json
+
+      - name: Dry-run public task surface
+        shell: bash
+        run: |
+          ota run test --native --dry-run .
+          ota run verify --native --dry-run .
+          ota run dev --native --dry-run .
+
+      - name: Dry-run verify workflow
+        shell: bash
+        run: ota up --workflow verify --native --dry-run .
+
+      - name: Execute public finite task surface
+        timeout-minutes: 90
+        shell: bash
+        run: |
+          ota run test --native --stream .
+          ota run verify --native --stream .
+
+      - name: Execute verify workflow
+        timeout-minutes: 90
+        shell: bash
+        run: ota up --workflow verify --native --stream .
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota-contract-matrix-${{ matrix.name }}
+          path: |
+            ota-validate.json
+            ota-doctor-fix-preview.json
+            ota-doctor-fix.json
+            ota-execution-topology.json
+            .ota/receipts
+            .ota/proof
