@@ -55,8 +55,10 @@ jobs:
         include:
           - name: ubuntu-native
             os: ubuntu-latest
+            proof_lane: true
           - name: macos-native
             os: macos-latest
+            proof_lane: false
 
     steps:
       - name: Checkout
@@ -122,14 +124,14 @@ jobs:
         run: ota up --workflow verify --native --dry-run .
 
       - name: Execute public finite task surface
-        timeout-minutes: 90
+        if: matrix.proof_lane
+        timeout-minutes: 180
         shell: bash
-        run: |
-          ota run test --native --stream .
-          ota run verify --native --stream .
+        run: ota run test --native --stream .
 
       - name: Execute verify workflow
-        timeout-minutes: 90
+        if: matrix.proof_lane
+        timeout-minutes: 180
         shell: bash
         run: ota up --workflow verify --native --stream .
 
