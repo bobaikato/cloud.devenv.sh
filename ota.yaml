@@ -106,10 +106,10 @@ agent:
     - ota.yaml
   bootstrap:
     ota:
-      note: Only install ota if it is missing and installation is approved.
+      note: Only install released Ota v1.6.25 if it is missing and installation is approved.
       source:
-        kind: branch
-        branch: 1.6.23-implementation
+        kind: version
+        version: v1.6.25
   notes: |
     Start with `ota validate`, then `ota tasks --use`, then `ota run verify --dry-run`.
     This repo's environment truth belongs to the `devenv` orchestrator, while `nix` remains the
