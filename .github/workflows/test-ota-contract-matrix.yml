@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           ota --version | tee ota-version.txt
-          ota --version | rg -q '1\\.6\\.25'
+          grep -Eq '1\.6\.25' ota-version.txt
 
       - name: Validate contract
         shell: bash
