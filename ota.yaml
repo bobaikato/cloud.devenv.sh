@@ -22,7 +22,7 @@ orchestrators:
       exe: nix
       args:
         - run
-        - github:cachix/devenv/main#devenv
+        - github:cachix/devenv/65a7c40d185350f0e96783b3dd8d4afab3bb7034#devenv
         - --
 
 tasks:
@@ -38,9 +38,9 @@ tasks:
     requirements:
       tools:
         nix: "*"
-    safe_for_agent: true
     notes: |
-      The current shipped CI truth is `nix run github:cachix/devenv/main#devenv -- test`.
+      This pressure fixture pins the devenv launcher to the same revision recorded in
+      `devenv.lock`: `nix run github:cachix/devenv/65a7c40d185350f0e96783b3dd8d4afab3bb7034#devenv -- test`.
       This contract models that directly as an orchestrator-owned launcher plus a direct
       orchestrator subcommand lane, so Ota requires `nix` on the host instead of pretending
       `devenv` must already exist on PATH.
@@ -69,7 +69,6 @@ tasks:
     aggregate:
       tasks:
         - test
-    safe_for_agent: true
     notes: |
       This keeps one verification entrypoint without inventing a no-op shell wrapper.
 
@@ -84,13 +83,6 @@ workflows:
 
 agent:
   posture: readiness_strict
-  entrypoint: test
-  default_task: verify
-  safe_tasks:
-    - test
-    - verify
-  verify_after_changes:
-    - verify
   writable_paths:
     - backend
     - cloud-hypervisor-client
@@ -106,10 +98,10 @@ agent:
     - ota.yaml
   bootstrap:
     ota:
-      note: Only install released Ota v1.6.25 if it is missing and installation is approved.
+      note: Only install released Ota v1.6.26 if it is missing and installation is approved.
       source:
         kind: version
-        version: v1.6.25
+        version: v1.6.26
   notes: |
     Start with `ota validate`, then `ota tasks --use`, then `ota run verify --dry-run`.
     This repo's environment truth belongs to the `devenv` orchestrator, while `nix` remains the

@@ -43,6 +43,7 @@ permissions:
 
 env:
   OTA_NO_UPDATE_CHECK: "1"
+  OTA_RELEASE_VERSION: 1.6.26
 
 jobs:
   matrix:
@@ -69,7 +70,7 @@ jobs:
       - name: Install nix
         uses: cachix/install-nix-action@b4b293eae0b79aac8a161bb32925a5508c9cca93 # v31
 
-      - name: Set up ota
+      - name: Set up contracted Ota release
         uses: ota-run/setup@493cba84bf7f7c11c9e8e996d832d93a89c62184 # v1.0.8
         with:
           source: contract
@@ -79,7 +80,9 @@ jobs:
         shell: bash
         run: |
           ota --version | tee ota-version.txt
-          grep -Eq '1\.6\.25' ota-version.txt
+          grep -Eq "(^|[^0-9])${OTA_RELEASE_VERSION//./\\.}([^0-9]|$)" ota-version.txt
+          printf 'v%s\n' "$OTA_RELEASE_VERSION" | tee ota-release-version.txt
+          shasum -a 256 "$(command -v ota)" | tee ota-binary-sha256.txt
 
       - name: Validate contract
         shell: bash
@@ -91,7 +94,8 @@ jobs:
         shell: bash
         run: |
           ota tasks --use .
-          ota tasks --safe --use .
+          ota tasks --safe --json . > ota-safe-tasks.json
+          jq -e '.tasks == []' ota-safe-tasks.json
           ota workflows .
 
       - name: Preview doctor fix surface
@@ -102,13 +106,6 @@ jobs:
           if [ "$status" -gt 1 ]; then
             exit "$status"
           fi
-
-      - name: Apply doctor fix surface
-        timeout-minutes: 60
-        shell: bash
-        run: |
-          ota doctor --fix --json . > ota-doctor-fix.json
-          ota doctor --fix .
 
       - name: Doctor contract
         shell: bash
@@ -133,13 +130,10 @@ jobs:
         if: matrix.proof_lane
         timeout-minutes: 180
         shell: bash
-        run: ota run test --native --stream .
-
-      - name: Execute verify workflow
-        if: matrix.proof_lane
-        timeout-minutes: 180
-        shell: bash
-        run: ota up --workflow verify --native --stream .
+        run: |
+          git status --porcelain=v1 > repo-status-before.txt
+          ota run test --native --stream .
+          git status --porcelain=v1 > repo-status-after.txt
 
       - name: Upload Ota matrix evidence
         if: always()
@@ -148,10 +142,14 @@ jobs:
           name: ota-contract-matrix-${{ matrix.name }}
           path: |
             ota-version.txt
+            ota-release-version.txt
+            ota-binary-sha256.txt
             ota-validate.json
+            ota-safe-tasks.json
             ota-doctor-fix-preview.json
-            ota-doctor-fix.json
             ota-execution-topology.json
+            repo-status-before.txt
+            repo-status-after.txt
             .ota/receipts
             .ota/proof
           if-no-files-found: error
